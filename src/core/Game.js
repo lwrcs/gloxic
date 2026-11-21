@@ -7,6 +7,7 @@ import { Audio } from './Audio.js';
 import { World } from '../world/World.js';
 import { PostFX } from '../render/PostFX.js';
 import { castRay } from '../shared/raycast.js';
+import { isTouchDevice } from '../ui/TouchControls.js';
 
 // Keys the browser should hand to the game in fullscreen (so Ctrl+W, Ctrl+D,
 // Ctrl+S... don't trigger browser shortcuts). Add new bindings here.
@@ -25,9 +26,13 @@ const LOCKED_KEYS = [
 export class Game {
   constructor(container) {
     this.container = container;
+    // Phones / tablets: on-screen controls instead of pointer lock, and a
+    // lower render resolution (the dithered look hides it; saves battery).
+    this.touchMode = isTouchDevice();
+    document.body.classList.toggle('touch', this.touchMode);
 
     this.renderer = new THREE.WebGLRenderer({ antialias: false });
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, CONFIG.render.maxPixelRatio));
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, this.touchMode ? 1.25 : CONFIG.render.maxPixelRatio));
     this.renderer.shadowMap.enabled = CONFIG.render.shadows;
     this.renderer.shadowMap.type = THREE.PCFShadowMap;
     this.renderer.autoClear = false;
@@ -88,6 +93,18 @@ export class Game {
   // Call from a user gesture (click): grabs the mouse and enables audio.
   requestPlay() {
     this.audio.unlock();
+    if (this.touchMode) {
+      // No pointer lock on touch screens: play with on-screen controls.
+      // Android can go fullscreen and lock landscape; iPhone ignores this.
+      const el = document.documentElement;
+      if (!document.fullscreenElement && el.requestFullscreen) {
+        el.requestFullscreen({ navigationUI: 'hide' })
+          .then(() => screen.orientation?.lock?.('landscape'))
+          .catch(() => {});
+      }
+      this.input.setFreeMode(true);
+      return;
+    }
     if (CONFIG.input.fullscreen) this.enterFullscreen();
     this.input.requestLock();
     // Some embedded browsers never grant pointer lock. If it has never worked

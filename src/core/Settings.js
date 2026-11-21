@@ -8,6 +8,7 @@ const KEY = 'gloxic.settings';
 const OLD_KEY = 'boxstrike.settings'; // before the rename
 const DEFAULTS = {
   sensitivity: 1.0, // multiplier on CONFIG.input.mouseSensitivity
+  touchSensitivity: 1.0, // look speed for touch drags (phones / tablets)
   volume: 0.8, // master volume 0..1.5
   tickLength: 0, // seconds per game tick (0 = off, real time). OSRS uses 0.6
   recoilView: true, // the view turns with the spray pattern (crosshair stays on target)

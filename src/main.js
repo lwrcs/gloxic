@@ -6,6 +6,7 @@ import { Effects } from './systems/Effects.js';
 import { HUD } from './ui/HUD.js';
 import { DamageNumbers } from './ui/DamageNumbers.js';
 import { Menu } from './ui/Menu.js';
+import { TouchControls } from './ui/TouchControls.js';
 import { Auth } from './net/Auth.js';
 import { OnlineSession } from './net/OnlineSession.js';
 import boxyard from './world/maps/boxyard.js';
@@ -32,6 +33,7 @@ player.viewmodel.setVisible(false);
 game.addSystem(new Effects(game));
 const hud = game.addSystem(new HUD(game, player));
 game.addSystem(new DamageNumbers(game));
+if (game.touchMode) game.addSystem(new TouchControls(game));
 const auth = new Auth();
 
 function setSession(session) {

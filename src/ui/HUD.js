@@ -44,9 +44,10 @@ export class HUD {
       <div class="overlay">
         <div class="panel">
           <h1>Gloxic</h1>
-          <p class="click">Click to play</p>
+          <p class="click">${game.touchMode ? 'Tap to play' : 'Click to play'}</p>
           <div class="pause-actions"><button class="leave">Leave</button></div>
-          <table>
+          <p class="touch-hint">Left side: move (push far to run, a little to sneak) · Right side: drag to look</p>
+          <table class="keys">
             <tr><td>WASD</td><td>Move</td></tr>
             <tr><td>Mouse</td><td>Look / Fire</td></tr>
             <tr><td>Right click</td><td>Aim down sights</td></tr>
@@ -61,8 +62,11 @@ export class HUD {
           </table>
           <div class="settings">
             <h2>Settings</h2>
-            <label>Mouse sensitivity <span class="sens-value"></span>
+            <label class="mouse-only">Mouse sensitivity <span class="sens-value"></span>
               <input class="sens" type="range" min="0.1" max="4" step="0.05" />
+            </label>
+            <label class="touch-only">Touch look speed <span class="tsens-value"></span>
+              <input class="tsens" type="range" min="0.2" max="3" step="0.05" />
             </label>
             <label>Volume <span class="vol-value"></span>
               <input class="vol" type="range" min="0" max="1.5" step="0.05" />
@@ -130,6 +134,14 @@ export class HUD {
     sens.addEventListener('input', () => {
       game.settings.set('sensitivity', Number(sens.value));
       showSens(sens.value);
+    });
+    const tsens = $('.tsens');
+    const tsensValue = $('.tsens-value');
+    tsens.value = game.settings.get('touchSensitivity');
+    tsensValue.textContent = Number(tsens.value).toFixed(2);
+    tsens.addEventListener('input', () => {
+      game.settings.set('touchSensitivity', Number(tsens.value));
+      tsensValue.textContent = Number(tsens.value).toFixed(2);
     });
     const vol = $('.vol');
     const volValue = $('.vol-value');

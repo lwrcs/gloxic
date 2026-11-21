@@ -1,6 +1,6 @@
 # Gloxic
 
-A fast browser FPS made with **Three.js** and **Vite**, written in plain JavaScript. Play 1v1 or team deathmatch with friends using a friend code, or practice against bots.
+A fast browser FPS made with **Three.js** and **Vite**, written in plain JavaScript. Play 1v1 or team deathmatch with friends using a friend code, or practice against bots. Works with mouse and keyboard or on phones and tablets (on-screen controls; add it to your home screen for fullscreen).
 
 ## Run locally
 
@@ -103,7 +103,7 @@ src/
   entities/             Entity, Player, RemotePlayer, Bot, Viewmodel
   weapons/              definitions (data), Weapon (ammo, recoil, hitscan, melee)
   systems/              RoundManager (practice), Effects
-  ui/                   Menu, HUD, DamageNumbers
+  ui/                   Menu, HUD, DamageNumbers, TouchControls (phones: joystick, look, buttons)
 server/
   wrangler.toml         Worker + Durable Object config
   src/index.js          HTTP routes, CORS, rate limits
