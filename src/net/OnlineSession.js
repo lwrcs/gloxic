@@ -8,6 +8,10 @@ import { MODES } from '../shared/modes.js';
 import { TICK_RATE, SNAPSHOT_EVERY, INTERP_MIN_TICKS, INTERP_MAX_TICKS } from '../shared/net.js';
 import { MSG, FLAG, encodeCmds, encodePing, decodeSnapshot, decodePong } from '../shared/protocol.js';
 
+// Server text going into HTML announcements is escaped (it's all fixed
+// strings today, but never trust the wire).
+const esc = (t) => String(t ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+
 // An online match, client side. Three jobs:
 //
 // 1. Prediction (your player). Each tick Player builds a command and runs it
@@ -293,7 +297,7 @@ export class OnlineSession {
     switch (m.t) {
       case 'welcome':
         this.myId = m.you;
-        this.mode = MODES[m.mode];
+        this.mode = Object.hasOwn(MODES, m.mode) ? MODES[m.mode] : MODES.duel;
         this.colo = m.colo;
         this.player.team = m.team;
         this.player.name = m.players.find((p) => p.id === m.you)?.name ?? 'You';
@@ -353,13 +357,13 @@ export class OnlineSession {
     const team = this.player.team;
     if (m.phase === 'freeze' && prev !== 'freeze') {
       ev.emit('roundStart', { round: m.round ?? 1 });
-      ev.emit('announce', { html: m.round ? `Round ${m.round}` : this.mode?.name ?? 'Get ready', seconds: 1.8 });
+      ev.emit('announce', { html: m.round ? `Round ${esc(m.round)}` : esc(this.mode?.name ?? 'Get ready'), seconds: 1.8 });
     } else if (m.phase === 'live' && prev === 'freeze') {
       ev.emit('announce', { html: 'Go', seconds: 0.8 });
     } else if (m.phase === 'roundEnd') {
       const won = m.roundWinner === team;
       const html = m.roundWinner ? (won ? 'Round won' : 'Round lost') : 'Round draw';
-      ev.emit('announce', { html: `${html}<small>${m.reason ?? ''}</small>`, seconds: 2.8, cls: m.roundWinner ? (won ? 'win' : 'lose') : '' });
+      ev.emit('announce', { html: `${html}<small>${esc(m.reason)}</small>`, seconds: 2.8, cls: m.roundWinner ? (won ? 'win' : 'lose') : '' });
     } else if (m.phase === 'waiting') {
       ev.emit('announce', { html: 'Waiting for players<small>Warm up: damage is off</small>', seconds: 3 });
     }
@@ -368,7 +372,7 @@ export class OnlineSession {
   endAnnouncement(m) {
     const won = m.winner === this.player.team;
     const title = m.winner ? (won ? 'Victory' : 'Defeat') : 'Draw';
-    return { html: `${title}<small>${m.reason} · ${m.score.blue} - ${m.score.red}</small>`, seconds: 7.5, cls: m.winner ? (won ? 'win' : 'lose') : '' };
+    return { html: `${title}<small>${esc(m.reason)} · ${esc(m.score?.blue)} - ${esc(m.score?.red)}</small>`, seconds: 7.5, cls: m.winner ? (won ? 'win' : 'lose') : '' };
   }
 
   closed(e) {

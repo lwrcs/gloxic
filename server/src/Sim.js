@@ -22,13 +22,19 @@ import { createRules, spawnScore } from './rules.js';
 const MAPS = { boxyard };
 const MAX_REWIND_TICKS = Math.round(MAX_REWIND * TICK_RATE);
 const PITCH_LIMIT = Math.PI / 2 - 0.01;
+// Messages per second a client may send (it sends ~64 command messages plus
+// a ping or two); beyond the burst the connection is closed. Commands are
+// separately limited to real time by the command budget.
+const MSG_RATE = 200;
+const MSG_BURST = 400;
+const has = (obj, key) => typeof key === 'string' && Object.hasOwn(obj, key);
 const r2 = (n) => Math.round(n * 100) / 100;
 
 export class Sim {
   constructor(config, { onEnd } = {}) {
     this.config = config;
-    this.mode = MODES[config.mode] ?? MODES.duel;
-    this.world = new MapGeometry(MAPS[config.map] ?? boxyard);
+    this.mode = has(MODES, config.mode) ? MODES[config.mode] : MODES.duel;
+    this.world = new MapGeometry(has(MAPS, config.map) ? MAPS[config.map] : boxyard);
     this.tickRate = TICK_RATE;
     this.tickMs = 1000 / TICK_RATE;
     this.tick = 0;
@@ -76,6 +82,8 @@ export class Sim {
     p.budget = CMD_BURST;
     p.budgetTime = null;
     p.lastSeq = 0; // a new connection numbers its commands from 1 again
+    p.msgTokens = MSG_BURST;
+    p.msgTime = Date.now();
     if (this.phase === 'waiting' && !p.alive) this.spawn(p, this.teamSpawn(p.team));
     this.send(p, {
       ...this.phaseMessage(),
@@ -127,6 +135,11 @@ export class Sim {
   onMessage(uid, ws, data) {
     const p = this.players.get(uid);
     if (!p || p.ws !== ws) return;
+    const now = Date.now();
+    p.msgTokens = Math.min(MSG_BURST, p.msgTokens + ((now - p.msgTime) / 1000) * MSG_RATE);
+    p.msgTime = now;
+    if (p.msgTokens < 1) return ws.close(1008, 'Too many messages');
+    p.msgTokens -= 1;
     if (typeof data === 'string') return; // no text messages from clients yet (chat would go here)
     if (data.byteLength > 1024 || data.byteLength < 1) return ws.close(1009, 'Message too large');
     const v = new DataView(data);

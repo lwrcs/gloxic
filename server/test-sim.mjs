@@ -1,6 +1,6 @@
 // Plain-Node smoke test of the match simulation (no Cloudflare needed).
 import { Sim } from './src/Sim.js';
-import { encodeCmds, decodeSnapshot, MSG } from '../src/shared/protocol.js';
+import { encodeCmds, encodePing, decodeSnapshot, MSG } from '../src/shared/protocol.js';
 import { BTN, aimDirection } from '../src/shared/pawn.js';
 
 const fakeWs = (name) => ({ name, msgs: [], snaps: [], send(m) { if (typeof m === 'string') this.msgs.push(JSON.parse(m)); else this.snaps.push(decodeSnapshot(new DataView(m))); }, close(c, r) { this.closed = [c, r]; } });
@@ -56,4 +56,18 @@ console.log('shot msg', JSON.stringify(B.msgs.find((m) => m.t === 'shot')));
   adv(64 * 2);
   sim.damage(pb, 50, { source: pa, part: 'body' });
   console.log('TDM after protection: health', pb.health);
+}
+
+// ---- Security: message flood closes the socket; unknown mode / map fall back ----
+{
+  const sim = new Sim({ matchId: 'z', lobby: 'ABCDEF', mode: 'constructor', map: '__proto__', region: 'weur', roster: [{ uid: 'a', name: 'A', team: 'blue' }, { uid: 'b', name: 'B', team: 'red' }] });
+  if (sim.mode.id !== 'duel') throw new Error('prototype-key mode was not rejected');
+  const A = fakeWs('A');
+  sim.connect('a', A);
+  const ping = encodePing(1, 10);
+  for (let i = 0; i < 300; i++) sim.onMessage('a', A, ping);
+  if (A.closed) throw new Error('normal message rate closed the socket');
+  for (let i = 0; i < 300; i++) sim.onMessage('a', A, ping);
+  if (!A.closed || A.closed[0] !== 1008) throw new Error('message flood was not stopped');
+  console.log('flood closed socket:', A.closed, '| bad mode fell back to', sim.mode.id);
 }

@@ -20,10 +20,17 @@ import { MAX_PLAYERS } from '../../src/shared/net.js';
 
 const EMPTY_TTL = 10 * 60 * 1000; // an empty lobby is deleted after this
 const MAX_MESSAGE = 2000;
+// Per-socket message allowance: every message is broadcast to the whole
+// lobby, so one client spamming would cost everyone. Refills per second.
+const MSG_RATE = 5;
+const MSG_BURST = 20;
+
+const has = (obj, key) => typeof key === 'string' && Object.hasOwn(obj, key);
 
 export class Lobby extends DurableObject {
   constructor(ctx, env) {
     super(ctx, env);
+    this.allowance = new WeakMap(); // ws -> { tokens, at } (resets on wake: fine)
     ctx.blockConcurrencyWhile(async () => {
       this.meta = (await ctx.storage.get('meta')) ?? null;
     });
@@ -131,12 +138,14 @@ export class Lobby extends DurableObject {
 
   async webSocketMessage(ws, raw) {
     if (typeof raw !== 'string' || raw.length > MAX_MESSAGE) return ws.close(1009, 'Message too large');
+    if (!this.allow(ws)) return ws.close(1008, 'Too many messages');
     let msg;
     try {
       msg = JSON.parse(raw);
     } catch {
       return;
     }
+    if (!msg || typeof msg !== 'object') return;
     const me = ws.deserializeAttachment();
     const isHost = me.uid === this.meta?.host;
     const error = (message) => ws.send(JSON.stringify({ t: 'error', message }));
@@ -144,7 +153,7 @@ export class Lobby extends DurableObject {
 
     switch (msg.t) {
       case 'mode':
-        if (!isHost || this.meta.state !== 'open' || !MODES[msg.mode]) return;
+        if (!isHost || this.meta.state !== 'open' || !has(MODES, msg.mode)) return;
         this.meta.mode = msg.mode;
         await this.save();
         this.broadcast();
@@ -156,8 +165,9 @@ export class Lobby extends DurableObject {
         break;
       case 'pings': {
         const pings = {};
-        for (const [region, ms] of Object.entries(msg.pings ?? {})) {
-          if (REGIONS[region] && Number.isFinite(ms) && ms >= 0 && ms < 5000) pings[region] = Math.round(ms);
+        if (!msg.pings || typeof msg.pings !== 'object') return;
+        for (const [region, ms] of Object.entries(msg.pings)) {
+          if (has(REGIONS, region) && Number.isFinite(ms) && ms >= 0 && ms < 5000) pings[region] = Math.round(ms);
         }
         ws.serializeAttachment({ ...me, pings });
         this.broadcast();
@@ -178,7 +188,20 @@ export class Lobby extends DurableObject {
     }
   }
 
+  // Token bucket per socket.
+  allow(ws) {
+    const now = Date.now();
+    const a = this.allowance.get(ws) ?? { tokens: MSG_BURST, at: now };
+    a.tokens = Math.min(MSG_BURST, a.tokens + ((now - a.at) / 1000) * MSG_RATE);
+    a.at = now;
+    this.allowance.set(ws, a);
+    if (a.tokens < 1) return false;
+    a.tokens -= 1;
+    return true;
+  }
+
   async startMatch() {
+    if (!has(MODES, this.meta.mode)) this.meta.mode = 'duel';
     const mode = MODES[this.meta.mode];
     const members = this.members();
     if (members.length < mode.minPlayers) throw new Error(`${mode.name} needs ${mode.minPlayers} players`);
@@ -195,7 +218,7 @@ export class Lobby extends DurableObject {
     // Region: fairest measured pings; else the host's continent.
     const host = members.find((m) => m.uid === this.meta.host) ?? members[0];
     const picked = pickRegion(members.map((m) => m.pings));
-    const region = picked?.region ?? CONTINENT_REGION[host.continent] ?? 'enam';
+    const region = picked?.region ?? (has(CONTINENT_REGION, host.continent) ? CONTINENT_REGION[host.continent] : 'enam');
 
     const id = this.env.MATCH.newUniqueId();
     const matchId = id.toString();

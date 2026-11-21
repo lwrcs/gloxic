@@ -11,8 +11,9 @@ main = "src/index.js"
 compatibility_date = "2026-01-01"
 
 [vars]
-# Pages that may talk to the server (comma separated).
-ALLOWED_ORIGINS = "https://lwrcs.com,https://www.lwrcs.com,https://lwrcs.github.io,http://localhost:5173,http://127.0.0.1:5173"
+# Pages that may talk to the server (comma separated). Production only:
+# local development adds localhost in server/.dev.vars.
+ALLOWED_ORIGINS = "https://lwrcs.com,https://www.lwrcs.com"
 # Firebase project whose ID tokens are accepted (Project settings > General).
 FIREBASE_PROJECT_ID = "gloxic-dcc9b"
 
@@ -32,8 +33,23 @@ class_name = "Probe"
 tag = "v1"
 new_sqlite_classes = ["Lobby", "Match", "Probe"]
 
-# Per-user limit on creating / joining lobbies.
+# Per-account limit on creating / joining lobbies.
 [[ratelimits]]
 name = "RATE_LIMITER"
 namespace_id = "1001"
 simple = { limit = 20, period = 60 }
+
+# Per-IP limit on creating / joining lobbies (guest accounts are free, so
+# this is what stops guessing friend codes with many accounts).
+[[ratelimits]]
+name = "LOBBY_IP_LIMITER"
+namespace_id = "1002"
+simple = { limit = 20, period = 60 }
+
+# Per-IP limit on everything else that reaches a Durable Object (probes,
+# sockets). Generous: a ping measurement is ~36 requests, and friends on
+# one network share an address.
+[[ratelimits]]
+name = "IP_LIMITER"
+namespace_id = "1003"
+simple = { limit = 600, period = 60 }

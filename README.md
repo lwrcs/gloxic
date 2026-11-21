@@ -55,10 +55,19 @@ browser (GitHub Pages)                         Cloudflare
 - Speed hacks: a client can't run commands faster than real time. There is a 16-command burst allowance; commands beyond it are dropped.
 - Inputs are validated (finite numbers, clamped pitch, valid weapon slot, message size limits). Malformed packets close the connection.
 - Firebase ID tokens are verified with Google's public keys (issuer, audience and expiry checked). WebSockets use HMAC tickets that are scoped to one lobby or match and expire in 60–120 s.
-- The `Origin` check on WebSockets and CORS only allow the game's pages.
-- Lobby creation and joining are rate limited per account.
+- The `Origin` check on WebSockets and CORS only allow the game's pages (production lists only lwrcs.com; localhost is added in `server/.dev.vars`).
+- Rate limits: lobby creation and joining per account *and* per IP (guest accounts are free, so this is what stops friend-code guessing), plus a per-IP limit on every route that reaches a Durable Object.
+- Message floods: lobby sockets may send 5 messages a second (burst 20), match sockets 200 a second (burst 400). Beyond that the socket is closed.
+- Lookups of client-supplied names (mode, region) only match real entries, never built-in object properties like `constructor`.
 - Enemy health is never sent to clients. Player names are sanitized on the server and only ever inserted into the page as text.
-- `DEV_AUTH` (local only, in `server/.dev.vars`) is never set in production.
+- The production page has a Content-Security-Policy: scripts only from the site and Google sign-in, network only to the site, the game server and Firebase Auth.
+- API responses send `nosniff`, `no-store` and `no-referrer` headers.
+- `DEV_AUTH` (local only, in `server/.dev.vars`) is never set in production, and dev tokens are refused unless the server is running on a local address.
+
+**Known limits (by design, for now)**
+- Every client gets every player's position, so a wallhack cheat could show enemies behind walls. Fixing that needs server-side visibility culling.
+- Aim is client-side, as in every shooter: an aimbot or recoil-control script can't be stopped by the server, only spotted.
+- Tickets can be reused until they expire (60–120 s) and travel in the WebSocket URL.
 
 ## Deploy
 

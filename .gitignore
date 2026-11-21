@@ -4,3 +4,4 @@ dist/
 server/.dev.vars
 .env.local
 .claude/settings.local.json
+dist-csp

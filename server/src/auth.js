@@ -31,7 +31,10 @@ export async function authenticate(request, env) {
   const token = header.startsWith('Bearer ') ? header.slice(7).trim() : '';
   if (!token) throw new HttpError(401, 'Sign in first');
 
-  if (env.DEV_AUTH === 'true' && token.startsWith('dev.')) {
+  // Dev tokens only on a local server, even if DEV_AUTH were set by mistake.
+  const host = new URL(request.url).hostname;
+  const local = host === 'localhost' || host === '127.0.0.1' || /^(10|192\.168)\./.test(host);
+  if (env.DEV_AUTH === 'true' && local && token.startsWith('dev.')) {
     const id = token.slice(4);
     if (!/^[A-Za-z0-9_-]{4,40}$/.test(id)) throw new HttpError(401, 'Bad dev token');
     return { uid: `dev-${id}`, name: null, guest: true };
@@ -44,8 +47,12 @@ export async function authenticate(request, env) {
       issuer: `https://securetoken.google.com/${project}`,
       audience: project,
       algorithms: ['RS256'],
+      maxTokenAge: '1h', // Firebase ID tokens live an hour; requires iat
+      clockTolerance: 30,
     });
-    if (typeof payload.sub !== 'string' || !payload.sub) throw new Error('no subject');
+    if (typeof payload.sub !== 'string' || !payload.sub || payload.sub.length > 128) throw new Error('no subject');
+    // Firebase: the sign-in must have happened in the past.
+    if (typeof payload.auth_time !== 'number' || payload.auth_time * 1000 > Date.now() + 30_000) throw new Error('bad auth_time');
     return { uid: payload.sub, name: payload.name ?? null, guest: payload.firebase?.sign_in_provider === 'anonymous' };
   } catch {
     throw new HttpError(401, 'Sign-in expired or invalid, sign in again');
@@ -90,15 +97,17 @@ export async function signTicket(env, data, ttlSeconds = 60) {
 export async function verifyTicket(env, ticket, scope) {
   const [body, sig] = String(ticket ?? '').split('.');
   if (!body || !sig) throw new HttpError(401, 'Missing ticket');
+  if (body.length > 1000 || sig.length > 100) throw new HttpError(401, 'Bad ticket');
+  const key = await hmacKey(env);
   let ok = false;
   try {
-    ok = await crypto.subtle.verify('HMAC', await hmacKey(env), unb64url(sig), enc.encode(body));
+    ok = await crypto.subtle.verify('HMAC', key, unb64url(sig), enc.encode(body));
   } catch {
     ok = false;
   }
   if (!ok) throw new HttpError(401, 'Bad ticket');
   const data = JSON.parse(new TextDecoder().decode(unb64url(body)));
-  if (data.exp < Date.now()) throw new HttpError(401, 'Ticket expired');
+  if (!(data.exp >= Date.now())) throw new HttpError(401, 'Ticket expired');
   if (data.scope !== scope) throw new HttpError(403, 'Ticket is for something else');
   return data;
 }

@@ -15,8 +15,10 @@ export { Probe } from './Probe.js';
 //   GET  /match/:id/ws?t=ticket      match WebSocket
 //
 // Friend codes are 6 characters from an alphabet without look-alikes
-// (no 0/O, 1/I/L): about a billion codes, so guessing one is impractical,
-// and lobby creation / joining is rate limited per user.
+// (no 0/O, 1/I/L): about a billion codes, so guessing one is impractical.
+// Lobby creation / joining is rate limited per account AND per IP address
+// (guest accounts are free to make, so a per-account limit alone wouldn't
+// stop someone guessing codes), and every route has a per-IP limit.
 
 const CODE_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
 const CODE_RE = /^[ABCDEFGHJKMNPQRSTUVWXYZ23456789]{6}$/;
@@ -44,18 +46,32 @@ function corsHeaders(origin) {
     : {};
 }
 
-const json = (data, status, headers) =>
-  new Response(JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json', ...headers } });
+const SECURITY_HEADERS = {
+  'X-Content-Type-Options': 'nosniff',
+  'Cache-Control': 'no-store',
+  'Referrer-Policy': 'no-referrer',
+};
 
-async function rateLimit(env, key) {
-  if (!env.RATE_LIMITER) return;
-  const { success } = await env.RATE_LIMITER.limit({ key });
+const json = (data, status, headers) =>
+  new Response(JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json', ...SECURITY_HEADERS, ...headers } });
+
+const has = (obj, key) => typeof key === 'string' && Object.hasOwn(obj, key);
+
+// limiter: a Workers rate-limit binding (absent in tests / old configs).
+async function rateLimit(limiter, key) {
+  if (!limiter) return;
+  const { success } = await limiter.limit({ key });
   if (!success) throw new HttpError(429, 'Too many requests, slow down');
 }
 
+const clientIp = (request) => request.headers.get('CF-Connecting-IP') ?? 'unknown';
+
+const MAX_BODY = 2000;
+
 async function readJson(request) {
+  if (Number(request.headers.get('Content-Length') ?? 0) > MAX_BODY) throw new HttpError(413, 'Request too large');
   const text = await request.text();
-  if (text.length > 2000) throw new HttpError(413, 'Request too large');
+  if (text.length > MAX_BODY) throw new HttpError(413, 'Request too large');
   try {
     return text ? JSON.parse(text) : {};
   } catch {
@@ -81,10 +97,13 @@ async function route(request, env, url, cors) {
 
   if (url.pathname === '/' || url.pathname === '/health') return json({ ok: true, game: 'gloxic' }, 200, cors);
 
+  // Everything past here costs a Durable Object call: per-IP limit.
+  await rateLimit(env.IP_LIMITER, clientIp(request));
+
   // Latency probe: the Probe object for a region lives in that region.
   if (parts[0] === 'probe' && parts.length === 2 && request.method === 'GET') {
     const region = parts[1];
-    if (!REGIONS[region]) throw new HttpError(404, 'Unknown region');
+    if (!has(REGIONS, region)) throw new HttpError(404, 'Unknown region');
     const stub = env.PROBE.get(env.PROBE.idFromName(region), { locationHint: region });
     const res = await stub.fetch('https://do/ping');
     return json(await res.json(), 200, { ...cors, 'Cache-Control': 'no-store' });
@@ -92,13 +111,15 @@ async function route(request, env, url, cors) {
 
   if (parts[0] === 'api' && parts[1] === 'lobbies' && request.method === 'POST') {
     const user = await authenticate(request, env);
-    await rateLimit(env, user.uid);
+    await rateLimit(env.RATE_LIMITER, user.uid);
+    await rateLimit(env.LOBBY_IP_LIMITER, clientIp(request));
     const body = await readJson(request);
+    if (!body || typeof body !== 'object') throw new HttpError(400, 'Bad request');
     const name = cleanName(body.name ?? user.name);
 
     // Create: pick an unused code.
     if (parts.length === 2) {
-      const mode = MODES[body.mode] ? body.mode : DEFAULT_MODE;
+      const mode = has(MODES, body.mode) ? body.mode : DEFAULT_MODE;
       for (let attempt = 0; attempt < 6; attempt++) {
         const code = makeCode();
         const res = await lobbyStub(env, code).fetch('https://do/create', {
@@ -127,7 +148,7 @@ async function route(request, env, url, cors) {
 
   // WebSockets: browsers send Origin on upgrades, so reject other sites.
   if ((parts[0] === 'lobby' || parts[0] === 'match') && parts.length === 3 && parts[2] === 'ws') {
-    if (request.headers.get('Upgrade') !== 'websocket') throw new HttpError(426, 'Expected a WebSocket');
+    if (request.headers.get('Upgrade')?.toLowerCase() !== 'websocket') throw new HttpError(426, 'Expected a WebSocket');
     if (!allowedOrigin(request, env)) throw new HttpError(403, 'Origin not allowed');
     const ticket = url.searchParams.get('t');
     if (parts[0] === 'lobby') {
@@ -136,6 +157,7 @@ async function route(request, env, url, cors) {
       return forwardSocket(request, lobbyStub(env, code), '/ws', who);
     }
     const id = parts[1];
+    if (!/^[0-9a-f]{64}$/.test(id)) throw new HttpError(404, 'No such match');
     const who = await verifyTicket(env, ticket, `match:${id}`);
     let doId;
     try {
