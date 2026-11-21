@@ -1,4 +1,4 @@
-# Gloxic game server: a Cloudflare Worker plus three Durable Object classes.
+﻿# Gloxic game server: a Cloudflare Worker plus three Durable Object classes.
 #   Lobby - one per friend code: the party, mode choice, starting matches
 #   Match - one per match: the authoritative 64 Hz simulation
 #   Probe - one per region: answers pings so browsers can measure latency
@@ -14,7 +14,7 @@ compatibility_date = "2026-01-01"
 # Pages that may talk to the server (comma separated).
 ALLOWED_ORIGINS = "https://lwrcs.com,https://www.lwrcs.com,https://lwrcs.github.io,http://localhost:5173,http://127.0.0.1:5173"
 # Firebase project whose ID tokens are accepted (Project settings > General).
-FIREBASE_PROJECT_ID = ""
+FIREBASE_PROJECT_ID = "gloxic-dcc9b"
 
 [[durable_objects.bindings]]
 name = "LOBBY"
