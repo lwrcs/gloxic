@@ -149,6 +149,9 @@ export function authErrorMessage(err) {
     'auth/popup-closed-by-user': 'Sign-in window closed',
     'auth/popup-blocked': 'The browser blocked the sign-in window',
     'auth/network-request-failed': 'Network error, check your connection',
+    'auth/configuration-not-found': 'Sign-in is not set up on the server yet (Firebase Authentication is off)',
+    'auth/operation-not-allowed': 'That sign-in method is turned off in Firebase',
+    'auth/unauthorized-domain': 'This site is not on the Firebase authorized domains list',
   };
   return map[err?.code] ?? err?.message ?? String(err);
 }
