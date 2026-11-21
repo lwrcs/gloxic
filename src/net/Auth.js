@@ -45,8 +45,9 @@ export class Auth {
 
   async init() {
     if (this.mode === 'dev') {
-      const uid = sessionStorage.getItem('gloxic.devUid');
-      this.user = uid ? { uid, guest: true, provider: 'dev' } : null;
+      // The server names dev accounts "dev-<id>"; match it so host checks work.
+      const id = sessionStorage.getItem('gloxic.devUid');
+      this.user = id ? { uid: `dev-${id}`, devId: id, guest: true, provider: 'dev' } : null;
       this.emit();
       return;
     }
@@ -73,9 +74,9 @@ export class Auth {
   async signInGuest() {
     await this.ready;
     if (this.mode === 'dev') {
-      const uid = Array.from(crypto.getRandomValues(new Uint8Array(8)), (b) => b.toString(16).padStart(2, '0')).join('');
-      sessionStorage.setItem('gloxic.devUid', uid);
-      this.user = { uid, guest: true, provider: 'dev' };
+      const id = Array.from(crypto.getRandomValues(new Uint8Array(8)), (b) => b.toString(16).padStart(2, '0')).join('');
+      sessionStorage.setItem('gloxic.devUid', id);
+      this.user = { uid: `dev-${id}`, devId: id, guest: true, provider: 'dev' };
       this.emit();
       return;
     }
@@ -134,7 +135,7 @@ export class Auth {
   // Bearer token for the game server.
   async token() {
     await this.ensureSignedIn();
-    if (this.mode === 'dev') return `dev.${this.user.uid}`;
+    if (this.mode === 'dev') return `dev.${this.user.devId}`;
     return this.auth.currentUser.getIdToken();
   }
 }

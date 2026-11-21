@@ -72,7 +72,7 @@ export class Lobby extends DurableObject {
       case '/matchEnded': {
         const { matchId, result } = await request.json();
         if (this.meta?.matchId === matchId) {
-          Object.assign(this.meta, { state: 'open', matchId: null, roster: [], lastResult: result });
+          Object.assign(this.meta, { state: 'open', matchId: null, colo: null, roster: [], lastResult: result });
           await this.save();
           this.broadcast();
         }
@@ -126,6 +126,7 @@ export class Lobby extends DurableObject {
       host: m.host,
       state: m.state,
       region: m.region,
+      colo: m.state === 'match' ? (m.colo ?? null) : null,
       lastResult: m.lastResult,
       members: this.members(except).map((x) => ({ uid: x.uid, name: x.name, team: x.team, pings: x.pings })),
     };
@@ -234,8 +235,9 @@ export class Lobby extends DurableObject {
       }),
     });
     if (!res.ok) throw new Error('Could not start the match server');
+    const { colo = null } = await res.json().catch(() => ({}));
 
-    Object.assign(this.meta, { state: 'match', matchId, region, roster: members.map((m) => m.uid) });
+    Object.assign(this.meta, { state: 'match', matchId, region, colo, roster: members.map((m) => m.uid) });
     await this.save();
     this.broadcast();
     for (const m of members) await this.sendTicket(m.ws, m.uid, m.name);

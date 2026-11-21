@@ -27,13 +27,20 @@ export const joinLobby = (auth, code) => post(auth, `/api/lobbies/${encodeURICom
 
 // Round-trip time to each region (ms): one warm-up request (connection
 // setup, waking the probe), then the best of three. Cached for 10 minutes.
-const PING_CACHE = 'gloxic.pings';
+const PING_CACHE = 'gloxic.pings.v2';
+
+// region -> datacenter code its probe answered from (e.g. sam -> IAD), so
+// the lobby can say where a server really is.
+export const probeColos = {};
 
 export async function measurePings({ force = false } = {}) {
   if (!force) {
     try {
       const cached = JSON.parse(sessionStorage.getItem(PING_CACHE) ?? 'null');
-      if (cached && Date.now() - cached.at < 10 * 60 * 1000) return cached.pings;
+      if (cached && Date.now() - cached.at < 10 * 60 * 1000) {
+        Object.assign(probeColos, cached.colos);
+        return cached.pings;
+      }
     } catch {
       /* ignore */
     }
@@ -43,21 +50,31 @@ export async function measurePings({ force = false } = {}) {
     try {
       await fetch(url, { cache: 'no-store' });
       let best = Infinity;
+      let colo = null;
       for (let i = 0; i < 3; i++) {
         const t0 = performance.now();
         const res = await fetch(url, { cache: 'no-store' });
-        await res.arrayBuffer();
+        const body = await res.text();
         best = Math.min(best, performance.now() - t0);
+        try {
+          colo = JSON.parse(body).colo ?? colo;
+        } catch {
+          /* ignore */
+        }
       }
-      return [region, Math.round(best)];
+      return [region, Math.round(best), colo];
     } catch {
-      return [region, null];
+      return [region, null, null];
     }
   };
   const results = await Promise.all(Object.keys(REGIONS).map(one));
-  const pings = Object.fromEntries(results.filter(([, ms]) => ms != null));
+  const pings = Object.fromEntries(results.filter(([, ms]) => ms != null).map(([r, ms]) => [r, ms]));
+  const colos = Object.fromEntries(
+    results.filter(([, , c]) => typeof c === 'string' && /^[A-Z]{3}$/.test(c)).map(([r, , c]) => [r, c]),
+  );
+  Object.assign(probeColos, colos);
   try {
-    sessionStorage.setItem(PING_CACHE, JSON.stringify({ at: Date.now(), pings }));
+    sessionStorage.setItem(PING_CACHE, JSON.stringify({ at: Date.now(), pings, colos }));
   } catch {
     /* ignore */
   }

@@ -21,7 +21,10 @@ export class Match extends DurableObject {
       const config = await request.json();
       await this.ctx.storage.put('config', config);
       this.createSim(config);
-      return new Response('ok');
+      // Where this match actually runs (the region hint is best effort).
+      const colo = await datacenter();
+      if (this.sim) this.sim.colo = colo;
+      return Response.json({ ok: true, colo });
     }
 
     if (url.pathname === '/ws') {

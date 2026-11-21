@@ -5,6 +5,7 @@ import { RemotePlayer } from '../entities/RemotePlayer.js';
 import { WEAPONS } from '../weapons/definitions.js';
 import { BTN, stepMove } from '../shared/pawn.js';
 import { MODES } from '../shared/modes.js';
+import { cityName } from '../shared/regions.js';
 import { TICK_RATE, SNAPSHOT_EVERY, INTERP_MIN_TICKS, INTERP_MAX_TICKS } from '../shared/net.js';
 import { MSG, FLAG, encodeCmds, encodePing, decodeSnapshot, decodePong } from '../shared/protocol.js';
 
@@ -401,7 +402,9 @@ export class OnlineSession {
   }
 
   get pingText() {
-    return `${Math.round(this.rtt)} ms${this.colo ? ` · ${this.colo}` : ''}`;
+    // "42 ms · Ashburn": the city of the datacenter the match runs in.
+    const city = this.colo && this.colo !== '?' ? cityName(this.colo) : '';
+    return `${Math.round(this.rtt)} ms${city ? ` · ${city}` : ''}`;
   }
 
   scoreboard() {

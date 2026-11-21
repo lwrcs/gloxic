@@ -1,5 +1,6 @@
 import { MODES, DEFAULT_MODE, TEAMS } from '../shared/modes.js';
-import { REGIONS, pickRegion } from '../shared/regions.js';
+import { pickRegion, placeName } from '../shared/regions.js';
+import { probeColos } from '../net/api.js';
 import { ONLINE_AVAILABLE } from '../net/config.js';
 import { authErrorMessage } from '../net/Auth.js';
 import { LobbyClient } from '../net/LobbyClient.js';
@@ -296,7 +297,7 @@ export class Menu {
 
     const worst = region ? Math.max(...s.members.map((m) => m.pings?.[region] ?? 0)) : null;
     ui.region.textContent = region
-      ? `${s.state === 'match' ? 'Server' : 'Best server'}: ${REGIONS[region]}${worst ? ` (highest ping ${worst} ms)` : ''}`
+      ? `${s.state === 'match' ? 'Server' : 'Best server'}: ${placeName(s.colo ?? probeColos[region], region)}${worst ? ` (highest ping ${worst} ms)` : ''}`
       : 'Measuring pings to servers...';
 
     const count = s.members.length;
