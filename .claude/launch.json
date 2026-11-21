@@ -1,0 +1,18 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "boxstrike",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev", "--", "--port", "5173", "--strictPort"],
+      "port": 5173
+    },
+    {
+      "name": "gloxic-server",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "server:dev"],
+      "port": 8787,
+      "url": "http://localhost:8787"
+    }
+  ]
+}
