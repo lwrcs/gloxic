@@ -2,11 +2,11 @@ import * as THREE from 'three';
 import { MapGeometry } from '../../src/shared/MapGeometry.js';
 import { hitboxesAt } from '../../src/shared/hitboxes.js';
 import { castRay } from '../../src/shared/raycast.js';
-import { runCmd } from '../../src/shared/pawn.js';
+import { runCmd, BTN } from '../../src/shared/pawn.js';
 import { MODES } from '../../src/shared/modes.js';
 import { TICK_RATE, SNAPSHOT_EVERY, MAX_REWIND, CMD_BURST } from '../../src/shared/net.js';
 import { MSG, decodeCmds, decodePing, encodePong, encodeSnapshot } from '../../src/shared/protocol.js';
-import boxyard from '../../src/world/maps/boxyard.js';
+import { MAPS, DEFAULT_MAP } from '../../src/world/maps/index.js';
 import { ServerPlayer } from './ServerPlayer.js';
 import { createRules, spawnScore } from './rules.js';
 
@@ -19,7 +19,6 @@ import { createRules, spawnScore } from './rules.js';
 // tick the server then records everyone's position for lag compensation,
 // runs the mode rules and sends each client a snapshot.
 
-const MAPS = { boxyard };
 const MAX_REWIND_TICKS = Math.round(MAX_REWIND * TICK_RATE);
 const PITCH_LIMIT = Math.PI / 2 - 0.01;
 // Messages per second a client may send (it sends ~64 command messages plus
@@ -34,12 +33,15 @@ export class Sim {
   constructor(config, { onEnd } = {}) {
     this.config = config;
     this.mode = has(MODES, config.mode) ? MODES[config.mode] : MODES.duel;
-    this.world = new MapGeometry(has(MAPS, config.map) ? MAPS[config.map] : boxyard);
+    this.mapId = has(MAPS, config.map) ? config.map : DEFAULT_MAP;
+    this.world = new MapGeometry(MAPS[this.mapId]);
     this.tickRate = TICK_RATE;
     this.tickMs = 1000 / TICK_RATE;
     this.tick = 0;
     this.players = new Map(); // uid -> ServerPlayer
     config.roster.forEach((r, i) => this.players.set(r.uid, new ServerPlayer(this, { id: i + 1, ...r })));
+    // Bomb mode: holding Use roots you (shared/pawn.js usingNow).
+    for (const p of this.players.values()) p.useBlocks = this.mode.id === 'bomb';
     this.score = { blue: 0, red: 0 };
     this.phase = 'waiting';
     this.phaseEnd = 0;
@@ -91,7 +93,7 @@ export class Sim {
       you: p.id,
       team: p.team,
       mode: this.mode.id,
-      map: this.config.map,
+      map: this.mapId,
       region: this.config.region,
       colo: this.colo,
       tick: this.tick,
@@ -170,6 +172,7 @@ export class Sim {
     for (const c of cmds) {
       if (c.seq <= p.lastSeq) continue; // duplicate
       p.lastSeq = c.seq;
+      p.using = !!(c.buttons & BTN.USE);
       // Faster than real time (speed hack, or a burst beyond the bank): drop.
       if (p.budget < 1) {
         p.dropped++;

@@ -18,7 +18,7 @@ export const WEAPONS = {
   rifle: {
     id: 'rifle',
     name: 'AR-7',
-    damage: { head: 105, body: 15, legs: 11 },
+    damage: { head: 150, body: 30, legs: 22 }, // vs 150 HP: 5 body shots, 1 headshot
     fireTicks: 7, // ticks between shots at 64 Hz = 0.109 s (~549 rpm), exact at any frame rate
     automatic: true,
     magSize: 30,
@@ -75,7 +75,7 @@ export const WEAPONS = {
     // after: pump/cock sound played `afterDelay` seconds after each shot.
     // (reload: a set timed to finish as the reload completes is also supported.)
     noiseRadius: 60,
-    sound: { set: 'shotgun_shot', volume: 1.5, pitch: 1, after: 'shotgun_pump', afterDelay: 0.32, afterVolume: 0.7 },
+    sound: { set: 'shotgun_shot', volume: 0.45, pitch: 1, after: 'shotgun_pump', afterDelay: 0.32, afterVolume: 0.25 },
     model: { length: 0.55, barrel: 0.045, mag: false, stock: true, pump: true },
   },
 

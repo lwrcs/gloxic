@@ -16,7 +16,7 @@ import { BTN, runCmd, patternScale, aimDirection } from '../shared/pawn.js';
 //
 // Controls: WASD (or arrows) move, Space jump, Ctrl (or C) crouch, Shift walk,
 //           LMB fire, RMB aim down sights, R reload, 1-4 or wheel switch,
-//           Q knife (again: back to the last gun).
+//           Q knife (again: back to the last gun), E plant / defuse (bomb mode).
 
 const SLOT_KEYS = ['Digit1', 'Digit2', 'Digit3', 'Digit4'];
 
@@ -37,6 +37,8 @@ export class Player extends Entity {
     this.seq = 0; // command number
     this.spawnId = 0; // which life this is (online: set by the server)
     this.stepDt = 0;
+    this.useBlocks = false; // bomb mode: holding E roots you (shared/pawn.js)
+    this.using = false; // E held this tick (plant / defuse)
 
     this.weapons = cfg.loadout.map((id) => new Weapon(WEAPONS[id]));
     for (const w of this.weapons) w.notify = (type) => game.events.emit(type, { owner: this, weapon: w.def });
@@ -148,6 +150,7 @@ export class Player extends Entity {
     if (!this.alive) this.deathTime += dt;
     else this.look();
     const cmd = this.buildCmd();
+    this.using = this.alive && !!(cmd.buttons & BTN.USE);
     this.stepDt = dt;
     runCmd(this, cmd, dt, this.game, this.hooks);
     this.net?.onLocalCmd(cmd);
@@ -178,6 +181,7 @@ export class Player extends Entity {
     if (down('ShiftLeft', 'ShiftRight')) b |= BTN.WALK;
     if (this.recoilView) b |= BTN.RECOIL_VIEW;
     if (input.isMouseDown(2)) b |= BTN.ADS;
+    if (down('KeyE')) b |= BTN.USE;
 
     let slot = this.weaponIndex;
     if (this.game.tickStart && this.alive) {

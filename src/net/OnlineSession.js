@@ -5,6 +5,8 @@ import { RemotePlayer } from '../entities/RemotePlayer.js';
 import { WEAPONS } from '../weapons/definitions.js';
 import { BTN, stepMove } from '../shared/pawn.js';
 import { MODES } from '../shared/modes.js';
+import { MAPS } from '../world/maps/index.js';
+import { BombView, bombObjective } from '../systems/BombView.js';
 import { cityName } from '../shared/regions.js';
 import { TICK_RATE, SNAPSHOT_EVERY, INTERP_MIN_TICKS, INTERP_MAX_TICKS } from '../shared/net.js';
 import { MSG, FLAG, encodeCmds, encodePing, decodeSnapshot, decodePong } from '../shared/protocol.js';
@@ -38,6 +40,7 @@ const SNAP_BUFFER = 128; // snapshots kept (2 s)
 export class OnlineSession {
   constructor(game, player, { matchId, ticket, region, lobbyCode, onEnd, onClose }) {
     this.online = true;
+    this.alwaysUpdate = true; // the planted bomb keeps beeping in the pause menu
     this.game = game;
     this.player = player;
     this.region = region;
@@ -56,6 +59,9 @@ export class OnlineSession {
     this.phaseEndsAt = 0;
     this.result = null;
     this.colo = '';
+    this.bomb = null; // bomb mode: public bomb state from the server
+    this.bombView = null;
+    this.action = null; // our plant / defuse: { kind, duration, start }
 
     // Clock: serverTick ~= nowTicks() + offset.
     this.offset = null;
@@ -124,7 +130,9 @@ export class OnlineSession {
     this.viewTick = this.renderTick;
   }
 
-  update() {}
+  update(dt) {
+    this.bombView?.update(dt);
+  }
 
   // State of player `id` at the render time (interpolated), or null.
   sample(id, t = this.renderTick) {
@@ -302,6 +310,10 @@ export class OnlineSession {
         this.colo = m.colo;
         this.player.team = m.team;
         this.player.name = m.players.find((p) => p.id === m.you)?.name ?? 'You';
+        // The mode's map (Bomb plays on Sandhollow).
+        if (Object.hasOwn(MAPS, m.map) && this.game.world.def !== MAPS[m.map]) this.game.loadMap(MAPS[m.map]);
+        this.player.useBlocks = this.mode.id === 'bomb';
+        if (this.mode.id === 'bomb' && !this.bombView) this.bombView = new BombView(this.game);
         this.setInfos(m.players);
         this.setPhase(m);
         break;
@@ -340,6 +352,12 @@ export class OnlineSession {
         if (victim) ev.emit('death', { victim, killer, weapon: WEAPONS[m.w], headshot: m.head });
         break;
       }
+      case 'bomb':
+        this.onBomb(m);
+        break;
+      case 'action':
+        this.action = m.kind ? { kind: m.kind, duration: m.duration, start: performance.now() } : null;
+        break;
       case 'end':
         this.result = m;
         ev.emit('announce', this.endAnnouncement(m));
@@ -348,8 +366,35 @@ export class OnlineSession {
     }
   }
 
+  onBomb(m) {
+    const prev = this.bomb?.state;
+    this.bomb = m;
+    this.bombView?.sync(m);
+    const ev = this.game.events;
+    const attacking = this.role === 'attack';
+    if (m.reason === 'planted') {
+      ev.emit('announce', { html: `Bomb planted<small>Site ${esc(m.site)}${attacking ? ' · defend it' : ' · defuse it'}</small>`, seconds: 2.5 });
+    } else if (m.reason === 'dropped' && attacking && prev === 'carried') {
+      ev.emit('announce', { html: 'Bomb dropped', seconds: 1.5 });
+    } else if (m.reason === 'pickup' && m.carrier === this.myId) {
+      ev.emit('announce', { html: 'You have the bomb', seconds: 1.5 });
+    }
+  }
+
+  // Bomb mode: 'attack' or 'defend' this round (null in other modes).
+  get role() {
+    const attack = this.phaseInfo.attack;
+    if (!attack) return null;
+    return attack === this.player.team ? 'attack' : 'defend';
+  }
+
   setPhase(m) {
     const prev = this.phase;
+    if (m.bomb) {
+      this.bomb = m.bomb;
+      this.bombView?.sync(m.bomb);
+    }
+    if (m.phase !== 'live') this.action = null;
     this.phase = m.phase;
     this.phaseInfo = m;
     this.score = m.score ?? this.score;
@@ -358,13 +403,16 @@ export class OnlineSession {
     const team = this.player.team;
     if (m.phase === 'freeze' && prev !== 'freeze') {
       ev.emit('roundStart', { round: m.round ?? 1 });
-      ev.emit('announce', { html: m.round ? `Round ${esc(m.round)}` : esc(this.mode?.name ?? 'Get ready'), seconds: 1.8 });
+      let sub = '';
+      if (m.attack) sub = `<small>${m.switched ? 'Sides switched · ' : ''}You're ${m.attack === team ? 'attacking' : 'defending'}</small>`;
+      ev.emit('announce', { html: (m.round ? `Round ${esc(m.round)}` : esc(this.mode?.name ?? 'Get ready')) + sub, seconds: m.attack ? 2.5 : 1.8 });
     } else if (m.phase === 'live' && prev === 'freeze') {
       ev.emit('announce', { html: 'Go', seconds: 0.8 });
     } else if (m.phase === 'roundEnd') {
       const won = m.roundWinner === team;
       const html = m.roundWinner ? (won ? 'Round won' : 'Round lost') : 'Round draw';
-      ev.emit('announce', { html: `${html}<small>${esc(m.reason)}</small>`, seconds: 2.8, cls: m.roundWinner ? (won ? 'win' : 'lose') : '' });
+      const half = m.halftime ? ' · Halftime: sides switch' : '';
+      ev.emit('announce', { html: `${html}<small>${esc(m.reason)}${half}</small>`, seconds: 2.8, cls: m.roundWinner ? (won ? 'win' : 'lose') : '' });
     } else if (m.phase === 'waiting') {
       ev.emit('announce', { html: 'Waiting for players<small>Warm up: damage is off</small>', seconds: 3 });
     }
@@ -398,7 +446,28 @@ export class OnlineSession {
     const m = this.mode;
     if (!m) return '';
     if (m.id === 'duel') return `Round ${this.phaseInfo.round ?? 1} · first to ${m.roundsToWin}`;
+    if (m.id === 'bomb') {
+      const role = this.role ? ` · ${this.role === 'attack' ? 'Attacking' : 'Defending'}` : '';
+      return `Round ${this.phaseInfo.round ?? 1} of ${m.roundsPerHalf * 2}${role}`;
+    }
     return `First to ${m.scoreLimit}`;
+  }
+
+  // Bomb mode objective for the HUD (undefined in other modes).
+  get objective() {
+    if (this.mode?.id !== 'bomb') return undefined;
+    if (this.phase !== 'freeze' && this.phase !== 'live') return null;
+    const p = this.player;
+    const a = this.action;
+    return bombObjective({
+      role: this.role,
+      bomb: this.bomb,
+      isCarrier: this.bomb?.state === 'carried' && this.bomb.carrier === this.myId,
+      alive: p.alive,
+      site: p.alive ? this.game.world.siteAt(p.position) : null,
+      action: a && p.using ? { kind: a.kind, progress: Math.min(1, (performance.now() - a.start) / 1000 / a.duration) } : null,
+      live: this.phase === 'live',
+    });
   }
 
   get pingText() {
@@ -419,7 +488,9 @@ export class OnlineSession {
     if (this.ws.readyState <= WebSocket.OPEN) this.ws.close(1000, 'left');
     for (const r of this.remotes.values()) this.game.removeEntity(r);
     this.remotes.clear();
+    this.bombView?.dispose();
     const p = this.player;
+    p.useBlocks = false;
     p.net = null;
     p.frozen = false;
     p.spawnId = 0;

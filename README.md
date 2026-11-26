@@ -1,6 +1,6 @@
 # Gloxic
 
-A fast browser FPS made with **Three.js** and **Vite**, written in plain JavaScript. Play 1v1 or team deathmatch with friends using a friend code, or practice against bots. Works with mouse and keyboard or on phones and tablets (on-screen controls; add it to your home screen for fullscreen).
+A fast browser FPS made with **Three.js** and **Vite**, written in plain JavaScript. Play 1v1, team deathmatch or Bomb with friends using a friend code, or practice against bots. Works with mouse and keyboard or on phones and tablets (on-screen controls; add it to your home screen for fullscreen).
 
 ## Run locally
 
@@ -12,6 +12,18 @@ npm run test:sim       # headless test of the match simulation
 ```
 
 Without Firebase settings, local play uses dev sign-in: each browser tab is a separate player, so you can test a match with two tabs.
+
+## Bomb mode
+
+Attackers vs defenders on **Sandhollow**, a desert town map. One life per round, 12 rounds (sides swap after 6), first to 7 wins.
+
+- One attacker carries the bomb (the HUD tells you). Hold **E** inside site **A** (north-west, the Cistern Yard) or **B** (north-east, the Kiln Yard) for 3.2 s to plant. Planting and defusing root you in place and you can't shoot.
+- Once planted the fuse runs 40 s. A defender holds **E** next to the bomb for 6 s to defuse. The blast kills anyone within about 9 m.
+- Attackers win by detonating the bomb or wiping out the defenders. Defenders win by defusing, wiping out the attackers before a plant, or running out the 105 s clock.
+- If the carrier dies the bomb drops; any attacker walks over it to pick it up.
+- **Bomb practice** (main menu) plays the same rules offline with bot teammates and bot enemies (the Enemies slider sets the enemy count).
+
+Sandhollow's lanes: the long, open Salt Road on the west edge to A; the narrow Rope Walk from mid to A; the long Market Street through the middle with a statue plaza; the Dye Lane from mid to B; the twisting Potters' Alley under an arch on the east edge to B; and the covered Arcade linking the Salt Road and mid. Attackers start at the Caravan Gate (south), defenders at the Well Plaza (north).
 
 ## Architecture
 
@@ -97,7 +109,8 @@ src/
     raycast.js          hitscan math (ray vs boxes)
     protocol.js         binary wire format
     net.js              netcode constants
-    modes.js            game modes (1v1, team deathmatch)
+    modes.js            game modes (1v1, team deathmatch, bomb)
+    bomb.js             bomb plant / defuse rules (server and practice)
     regions.js          server regions + fairest-region pick
   net/
     OnlineSession.js    prediction, reconciliation, interpolation, server events
@@ -111,7 +124,7 @@ src/
   physics/collision.js  AABB move-and-slide
   entities/             Entity, Player, RemotePlayer, Bot, Viewmodel
   weapons/              definitions (data), Weapon (ammo, recoil, hitscan, melee)
-  systems/              RoundManager (practice), Effects
+  systems/              RoundManager (practice), BombPractice, BombView, Effects
   ui/                   Menu, HUD, DamageNumbers, TouchControls (phones: joystick, look, buttons)
 server/
   wrangler.toml         Worker + Durable Object config
@@ -132,7 +145,7 @@ server/
 |----------------|---------|
 | A game mode    | Add it to `src/shared/modes.js` and a rules class to `server/src/rules.js` |
 | A weapon       | Add an entry to `weapons/definitions.js`, then add its id to `CONFIG.player.loadout` (works online automatically) |
-| A map          | Copy `maps/boxyard.js` and register it in `server/src/Sim.js` `MAPS` and `main.js` |
+| A map          | Copy `maps/boxyard.js` (or `maps/sandhollow.js` for bomb sites) and register it in `maps/index.js`; a mode picks its map with `map` in `modes.js` |
 | A server event | Send JSON from `Sim.js`, handle it in `OnlineSession.onEvent` |
 | A sound        | Drop files in `public/sounds/<group>/`, list the set in `audio/sounds.js` |
 

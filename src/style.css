@@ -588,8 +588,12 @@ body.in-menu .nametag {
   letter-spacing: 0.25em;
   font-weight: 700;
 }
-.menu .practice {
+.menu .practice,
+.menu .practice-bomb {
   width: 100%;
+}
+.menu .practice-bomb {
+  margin-top: 8px;
 }
 .menu-error {
   margin-top: 14px;
@@ -800,6 +804,13 @@ body.touch-playing .touch-controls {
   right: calc(184px + env(safe-area-inset-right));
   bottom: 120px;
 }
+.tbtn.use {
+  width: 50px;
+  height: 50px;
+  right: calc(320px + env(safe-area-inset-right));
+  bottom: 104px;
+  font-size: 10px;
+}
 .tbtn.knife {
   width: 50px;
   height: 50px;
@@ -894,4 +905,41 @@ body.touch .mouse-only {
   .code-big {
     font-size: 30px;
   }
+}
+
+/* bomb mode: objective line + plant / defuse bar */
+.objective {
+  position: absolute;
+  left: 50%;
+  bottom: 22%;
+  transform: translateX(-50%);
+  text-align: center;
+  font-size: 15px;
+  font-weight: 600;
+  white-space: nowrap;
+  display: none;
+}
+.objective.show {
+  display: block;
+}
+.objective .obj-text {
+  background: rgba(0, 0, 0, 0.45);
+  padding: 3px 10px;
+  border-radius: 3px;
+  display: inline-block;
+}
+.objective .obj-bar {
+  width: 220px;
+  height: 8px;
+  margin: 6px auto 0;
+  border: 1px solid #fff;
+  display: none;
+}
+.objective .obj-bar.show {
+  display: block;
+}
+.objective .obj-bar div {
+  height: 100%;
+  background: #fff;
+  width: 0;
 }

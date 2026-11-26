@@ -17,6 +17,7 @@ export class MapGeometry {
     this.boxes = []; // { x, y, z, w, h, d, tile } (center + size)
     this.colliders = []; // THREE.Box3[] for physics and hitscan
     this.spawns = {}; // team -> Vector3[]
+    this.sites = {}; // bomb sites: name -> { name, x0, x1, z0, z1 (cells), center }
     this.parse();
     this.buildBoxes();
   }
@@ -34,6 +35,35 @@ export class MapGeometry {
         if (team) (this.spawns[team] ??= []).push(this.cellToWorld(x, z));
       }
     }
+    for (const [name, r] of Object.entries(this.def.sites ?? {})) {
+      const [x0, x1] = r.x;
+      const [z0, z1] = r.z;
+      const a = this.cellToWorld(x0, z0);
+      const b = this.cellToWorld(x1, z1);
+      const center = a.clone().add(b).multiplyScalar(0.5);
+      this.sites[name] = { name, x0, x1, z0, z1, center };
+    }
+  }
+
+  // Name of the bomb site containing world point p, or null.
+  siteAt(p) {
+    const { cx, cz } = this.worldToCell(p.x, p.z);
+    for (const s of Object.values(this.sites)) {
+      if (cx >= s.x0 && cx <= s.x1 && cz >= s.z0 && cz <= s.z1) return s.name;
+    }
+    return null;
+  }
+
+  // A random walkable cell center inside a site.
+  randomSitePoint(name) {
+    const s = this.sites[name];
+    if (!s) return null;
+    for (let i = 0; i < 40; i++) {
+      const cx = s.x0 + Math.floor(Math.random() * (s.x1 - s.x0 + 1));
+      const cz = s.z0 + Math.floor(Math.random() * (s.z1 - s.z0 + 1));
+      if (!this.isSolid(cx, cz)) return this.cellToWorld(cx, cz);
+    }
+    return s.center.clone();
   }
 
   buildBoxes() {
@@ -53,7 +83,9 @@ export class MapGeometry {
         while (end < this.width && this.grid[z][end] === ch) end++;
         const run = end - x;
         const a = this.cellToWorld(x, z);
-        this.addBox(a.x + ((run - 1) * this.cell) / 2, tile.height / 2, a.z, run * this.cell, tile.height, this.cell, tile);
+        // `base`: the box starts this high (arches, awnings: walk underneath).
+        const base = tile.base ?? 0;
+        this.addBox(a.x + ((run - 1) * this.cell) / 2, base + tile.height / 2, a.z, run * this.cell, tile.height, this.cell, tile);
         x = end;
       }
     }
@@ -76,7 +108,8 @@ export class MapGeometry {
 
   isSolid(cx, cz) {
     if (cx < 0 || cz < 0 || cx >= this.width || cz >= this.depth) return true;
-    return !!this.def.tiles[this.grid[cz][cx]]?.solid;
+    const tile = this.def.tiles[this.grid[cz][cx]];
+    return !!tile?.solid && !tile.base; // overhead tiles leave the floor walkable
   }
 
   // A random open (walkable) cell center, optionally passing test(point).
@@ -92,7 +125,7 @@ export class MapGeometry {
   }
 
   getSpawns(team) {
-    return this.spawns[team] ?? [new THREE.Vector3()];
+    return this.spawns[team] ?? this.spawns[this.def.teamSpawns?.[team]] ?? [new THREE.Vector3()];
   }
 
   hasLineOfSight(from, to) {

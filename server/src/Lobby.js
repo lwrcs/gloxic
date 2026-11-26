@@ -1,6 +1,6 @@
 import { DurableObject } from 'cloudflare:workers';
 import { signTicket } from './auth.js';
-import { MODES, TEAMS } from '../../src/shared/modes.js';
+import { MODES, TEAMS, mapForMode } from '../../src/shared/modes.js';
 import { pickRegion, CONTINENT_REGION, REGIONS } from '../../src/shared/regions.js';
 import { MAX_PLAYERS } from '../../src/shared/net.js';
 
@@ -229,7 +229,7 @@ export class Lobby extends DurableObject {
         matchId,
         lobby: this.meta.code,
         mode: mode.id,
-        map: 'boxyard',
+        map: mapForMode(mode),
         region,
         roster: members.map((m) => ({ uid: m.uid, name: m.name, team: m.team })),
       }),

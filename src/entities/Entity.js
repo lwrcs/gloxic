@@ -58,6 +58,7 @@ export class Entity {
 
   takeDamage(amount, { source = null, part = 'body', weapon = null } = {}) {
     if (!this.alive) return;
+    if (source && source !== this && source.team === this.team) return; // no friendly fire
     this.health = Math.max(0, this.health - amount);
     this.game.events.emit('damage', { target: this, source, amount, part, weapon });
     if (this.health <= 0) this.die({ source, part, weapon });

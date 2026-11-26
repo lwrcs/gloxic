@@ -9,7 +9,8 @@ import { Menu } from './ui/Menu.js';
 import { TouchControls } from './ui/TouchControls.js';
 import { Auth } from './net/Auth.js';
 import { OnlineSession } from './net/OnlineSession.js';
-import boxyard from './world/maps/boxyard.js';
+import { BombPractice } from './systems/BombPractice.js';
+import { MAPS } from './world/maps/index.js';
 import { SOUND_SETS } from './audio/sounds.js';
 
 // Wiring: the game, the map, the local player, the always-on systems, and
@@ -19,7 +20,7 @@ import { SOUND_SETS } from './audio/sounds.js';
 // New features usually mean a new entity or system added here.
 
 const game = new Game(document.getElementById('app'));
-game.loadMap(boxyard);
+game.loadMap(MAPS.boxyard);
 
 // Decode sound samples in the background; until they're ready (or if a file
 // is missing) the procedural fallback sounds play instead.
@@ -46,12 +47,18 @@ function setSession(session) {
   hud.setSession(session);
 }
 
-function startPractice() {
+// kind: 'bots' (Boxyard, you vs bots) or 'bomb' (Sandhollow, Bomb mode with
+// bot teammates).
+function startPractice(kind = 'bots') {
   player.team = CONFIG.teams.player;
   player.name = 'You';
-  const rounds = new RoundManager(game, player);
-  setSession(rounds);
-  rounds.startRound();
+  const map = kind === 'bomb' ? MAPS.sandhollow : MAPS.boxyard;
+  setSession(null); // before swapping maps: the old session's bots go first
+  if (game.world.def !== map) game.loadMap(map);
+  const session = kind === 'bomb' ? new BombPractice(game, player) : new RoundManager(game, player);
+  setSession(session);
+  if (kind === 'bomb') session.start();
+  else session.startRound();
   menu.hide();
   hud.showOverlay();
 }

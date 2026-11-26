@@ -51,7 +51,7 @@ export const CONFIG = {
     jumpSpeed: 7.2,
     groundAccel: 70,
     airAccel: 10,
-    maxHealth: 100,
+    maxHealth: 150,
     loadout: ['rifle', 'pistol', 'shotgun', 'knife'], // slots 1-4; Q = knife
     switchTime: 0.05, // seconds before a swapped-to weapon can fire
     adsTime: 0.12, // seconds to fully aim down sights
@@ -80,7 +80,7 @@ export const CONFIG = {
     walkSpeed: 2.2, // patrolling
     accel: 30,
     turnSpeed: 4.5, // radians / second: spotting you from the side takes a moment
-    maxHealth: 100,
+    maxHealth: 150,
     weapon: 'rifle',
     aimError: 0.05, // random aim error in radians (bots only; the player has no random spread)
     repathInterval: 0.6,

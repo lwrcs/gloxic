@@ -26,7 +26,15 @@ export const BTN = {
   ADS: 512,
   RELOAD: 1024,
   RECOIL_VIEW: 2048, // "view follows recoil": the client turns the view, the server doesn't offset shots
+  USE: 4096, // E: plant / defuse the bomb
 };
+
+// Bomb mode (p.useBlocks): holding Use roots you in place (crouch still
+// works) and you can't shoot, like planting or defusing in a tactical
+// shooter. It depends only on the buttons, so prediction stays exact.
+export function usingNow(p, buttons) {
+  return !!p.useBlocks && !!(buttons & BTN.USE);
+}
 
 const _dir = new THREE.Vector3();
 const _euler = new THREE.Euler();
@@ -58,7 +66,7 @@ export function patternScale(p) {
 export function stepMove(p, buttons, yaw, dt, colliders) {
   const cfg = CONFIG.player;
   const frozen = !!p.frozen;
-  const b = frozen ? 0 : buttons;
+  const b = frozen ? 0 : usingNow(p, buttons) ? buttons & BTN.CROUCH : buttons;
 
   // Crouch; only stand up if there's room above.
   if (b & BTN.CROUCH) p.crouching = true;
@@ -129,7 +137,7 @@ export function runCmd(p, cmd, dt, ctx, hooks = {}) {
   hooks.moved?.(moved);
 
   if (cmd.slot !== p.weaponIndex && switchWeapon(p, cmd.slot)) hooks.switched?.();
-  if (p.frozen) return;
+  if (p.frozen || usingNow(p, cmd.buttons)) return;
   const w = p.weapons[p.weaponIndex];
   if (cmd.buttons & BTN.RELOAD) w.startReload();
 

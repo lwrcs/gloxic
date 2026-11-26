@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { BombState, BOMB } from '../../src/shared/bomb.js';
 
 // Mode rules: how a match flows (rounds, respawns, scoring, winning).
 // Each mode is a class with the same hooks, so adding a mode means adding a
@@ -132,7 +133,120 @@ export class TdmRules extends Rules {
   }
 }
 
+// Bomb: attackers vs defenders, one life a round. Attackers win by planting
+// the bomb at site A or B and letting it explode, or by eliminating the
+// defenders. Defenders win by defusing it, eliminating the attackers before
+// a plant, or running out the clock. Sides swap after `roundsPerHalf`.
+// Teams keep their ids (blue / red); `attack` says who is attacking.
+export class BombRules extends Rules {
+  start() {
+    const sim = this.sim;
+    this.round = 0;
+    this.attack = 'blue';
+    this.final = null; // { winner, reason } once the match is decided
+    this.bomb = new BombState(sim.world, {
+      emit: (type, e) => (type === 'state' ? this.onBombState(e) : this.onBombAction(e)),
+      damage: (p, amount) => sim.damage(p, amount, { part: 'body', weapon: { id: 'bomb' } }),
+    });
+    this.nextRound();
+  }
+
+  get defend() {
+    return TEAMS.find((t) => t !== this.attack);
+  }
+
+  info(extra = {}) {
+    return { round: this.round, attack: this.attack, half: this.round > this.mode.roundsPerHalf ? 2 : 1, bomb: this.bombInfo(), ...extra };
+  }
+
+  bombInfo() {
+    return this.bomb.publicState((p) => p.id);
+  }
+
+  nextRound() {
+    const sim = this.sim;
+    this.round++;
+    const switched = this.round === this.mode.roundsPerHalf + 1;
+    if (switched) this.attack = this.defend;
+    for (const p of sim.playerList()) {
+      sim.spawn(p, sim.teamSpawn(p.team === this.attack ? 'attack' : 'defend'), { frozen: true });
+    }
+    // Prefer someone actually connected to carry the bomb.
+    const attackers = this.teamPlayers(this.attack);
+    const online = attackers.filter((p) => p.connected);
+    this.bomb.reset(online.length ? online : attackers);
+    sim.setPhase('freeze', this.mode.freezeTime, this.info({ switched }));
+  }
+
+  update() {
+    const sim = this.sim;
+    if (this.checkForfeit()) return;
+    if (sim.phase === 'freeze') {
+      if (sim.phaseOver()) {
+        for (const p of sim.playerList()) p.frozen = false;
+        sim.setPhase('live', this.mode.roundTime, this.info());
+      }
+      return;
+    }
+    if (sim.phase === 'roundEnd') {
+      if (!sim.phaseOver()) return;
+      if (this.final) sim.end(this.final.winner, this.final.reason);
+      else this.nextRound();
+      return;
+    }
+    if (sim.phase !== 'live') return;
+    this.bomb.update(1 / sim.tickRate, sim.playerList(), this.attack);
+    if (sim.phase !== 'live') return; // the blast decided it
+    if (this.bomb.state === 'exploded') return this.roundOver(this.attack, 'The bomb exploded');
+    if (this.bomb.state === 'defused') return this.roundOver(this.defend, 'The bomb was defused');
+    if (!this.bomb.planted && sim.phaseOver()) this.roundOver(this.defend, 'Time ran out');
+  }
+
+  onBombState({ reason }) {
+    const sim = this.sim;
+    if (!this.bomb) return; // the constructor's first reset
+    if (reason === 'planted' && sim.phase === 'live') {
+      // The round clock becomes the fuse.
+      sim.setPhase('live', BOMB.fuse, this.info());
+    }
+    if (sim.phase !== 'waiting') sim.broadcast({ t: 'bomb', reason, ...this.bombInfo() });
+  }
+
+  // Tell the player planting / defusing how long it takes (for their bar).
+  onBombAction({ player, kind, duration }) {
+    if (player) this.sim.send(player, { t: 'action', kind, duration: duration ?? 0 });
+  }
+
+  onDeath(victim) {
+    const sim = this.sim;
+    if (sim.phase !== 'live' || this.bomb.done) return;
+    const alive = (team) => this.teamPlayers(team).some((p) => p.alive);
+    if (!alive(this.defend)) this.roundOver(this.attack, 'Defenders eliminated');
+    else if (!alive(this.attack) && !this.bomb.planted) this.roundOver(this.defend, 'Attackers eliminated');
+    // Attackers all dead after a plant: the defenders still have to defuse.
+  }
+
+  onLeave(p) {
+    this.bomb?.drop(p);
+  }
+
+  roundOver(team, reason) {
+    const sim = this.sim;
+    if (team) sim.score[team]++;
+    const { roundsToWin, roundsPerHalf } = this.mode;
+    if (team && sim.score[team] >= roundsToWin) this.final = { winner: team, reason: `First to ${roundsToWin}` };
+    else if (this.round >= roundsPerHalf * 2) {
+      const { blue, red } = sim.score;
+      this.final = { winner: blue === red ? null : blue > red ? 'blue' : 'red', reason: 'All rounds played' };
+    }
+    if (this.bomb.action) this.bomb.setAction(null, null);
+    const last = this.round === roundsPerHalf && !this.final;
+    sim.setPhase('roundEnd', this.mode.roundEndTime, this.info({ roundWinner: team, reason, halftime: last }));
+  }
+}
+
 export function createRules(sim, mode) {
+  if (mode.id === 'bomb') return new BombRules(sim, mode);
   return mode.id === 'duel' ? new DuelRules(sim, mode) : new TdmRules(sim, mode);
 }
 

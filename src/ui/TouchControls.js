@@ -41,6 +41,7 @@ export class TouchControls {
       <button class="tbtn reload" data-act="reload">R</button>
       <button class="tbtn swap" data-act="swap">SWAP</button>
       <button class="tbtn knife" data-act="knife">KNIFE</button>
+      <button class="tbtn use" data-act="use">USE</button>
       <button class="tbtn small pause" data-act="pause">II</button>
       <button class="tbtn small scores" data-act="scores">SCORES</button>
       <div class="rotate-hint">Turn your phone sideways</div>`;
@@ -180,6 +181,10 @@ export class TouchControls {
       case 'knife':
         if (down) input.pressed.add('KeyQ');
         break;
+      case 'use':
+        if (down) input.keys.add('KeyE');
+        else input.keys.delete('KeyE');
+        break;
       case 'scores':
         if (down) input.keys.add('Tab');
         else input.keys.delete('Tab');
@@ -214,6 +219,7 @@ export class TouchControls {
     this.buttons.crouch.classList.toggle('on', this.crouch);
     this.buttons.ads.classList.toggle('on', this.ads);
     this.buttons.scores.style.display = this.game.session?.online ? '' : 'none';
+    this.buttons.use.style.display = this.game.session?.objective !== undefined ? '' : 'none'; // bomb mode
     const melee = !!this.game.player?.weapon?.def.melee;
     this.buttons.ads.style.visibility = melee ? 'hidden' : '';
     this.buttons.reload.style.visibility = melee ? 'hidden' : '';

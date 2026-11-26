@@ -34,8 +34,9 @@ export class HUD {
       <div class="killfeed"></div>
       <div class="message"></div>
       <div class="notice"></div>
+      <div class="objective"><div class="obj-text"></div><div class="obj-bar"><div></div></div></div>
       <div class="error"></div>
-      <div class="bottom-left"><span class="label">HP</span><span class="health">100</span></div>
+      <div class="bottom-left"><span class="label">HP</span><span class="health">150</span></div>
       <div class="bottom-right">
         <div class="weapon-name"></div>
         <div><span class="ammo">30</span><span class="reserve"> / 90</span></div>
@@ -57,6 +58,7 @@ export class HUD {
             <tr><td>R</td><td>Reload</td></tr>
             <tr><td>1 / 2 / 3 / 4 / Wheel</td><td>Rifle / Pistol / Shotgun / Knife</td></tr>
             <tr><td>Q</td><td>Knife (again: back to gun)</td></tr>
+            <tr><td>E (hold)</td><td>Plant / defuse the bomb</td></tr>
             <tr><td>Tab</td><td>Scoreboard (online)</td></tr>
             <tr><td>Esc</td><td>Pause</td></tr>
           </table>
@@ -116,6 +118,10 @@ export class HUD {
       ping: $('.ping'),
       scoreboard: $('.scoreboard'),
       leave: $('.leave'),
+      objective: $('.objective'),
+      objText: $('.obj-text'),
+      objBar: $('.obj-bar'),
+      objFill: $('.obj-bar div'),
     };
     this.ui.leave.addEventListener('click', (e) => {
       e.stopPropagation();
@@ -201,6 +207,7 @@ export class HUD {
     this.ui.leave.textContent = online ? 'Leave match' : 'Main menu';
     this.ui.killfeed.innerHTML = '';
     this.ui.message.classList.remove('show');
+    this.ui.objective.classList.remove('show');
   }
 
   showOverlay(show = true) {
@@ -277,7 +284,7 @@ export class HUD {
     if (!session) return;
 
     ui.health.textContent = Math.ceil(player.health);
-    ui.health.classList.toggle('low', player.health <= 25);
+    ui.health.classList.toggle('low', player.health <= 40);
     ui.weaponName.textContent = w.def.name;
     ui.ammo.classList.toggle('low', w.ammo <= w.def.magSize * 0.2);
     const infinite = player.infiniteAmmo;
@@ -293,6 +300,15 @@ export class HUD {
     ui.timer.textContent = session.showTimer ? `${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}` : '--:--';
     ui.alive.textContent = session.statusText;
     ui.ping.textContent = session.online ? session.pingText : '';
+
+    // Bomb mode: what to do now, and the plant / defuse progress.
+    const obj = session.objective;
+    ui.objective.classList.toggle('show', !!obj);
+    if (obj) {
+      if (ui.objText.textContent !== obj.text) ui.objText.textContent = obj.text;
+      ui.objBar.classList.toggle('show', obj.progress != null);
+      if (obj.progress != null) ui.objFill.style.width = `${Math.round(obj.progress * 100)}%`;
+    }
 
     // Hold Tab: scoreboard (online).
     const board = !!session.online && this.game.input.isDown('Tab') && !this.game.paused;

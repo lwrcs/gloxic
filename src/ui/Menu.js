@@ -60,6 +60,7 @@ export class Menu {
         <section>
           <h2>Solo</h2>
           <button class="practice">Practice vs bots</button>
+          <button class="practice-bomb">Bomb practice (Sandhollow)</button>
         </section>
         <div class="menu-error"></div>
       </div>
@@ -139,7 +140,8 @@ export class Menu {
     $('.join').addEventListener('click', () => this.busy(() => this.joinLobby(this.ui.code.value)));
     this.ui.code.addEventListener('input', () => (this.ui.code.value = this.ui.code.value.toUpperCase()));
     this.ui.code.addEventListener('keydown', (e) => e.key === 'Enter' && this.busy(() => this.joinLobby(this.ui.code.value)));
-    $('.practice').addEventListener('click', () => actions.practice());
+    $('.practice').addEventListener('click', () => actions.practice('bots'));
+    $('.practice-bomb').addEventListener('click', () => actions.practice('bomb'));
 
     // Lobby.
     $('.copy-code').addEventListener('click', () => this.copy(this.lobby?.code));

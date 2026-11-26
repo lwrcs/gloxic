@@ -46,13 +46,18 @@ export class Bot extends Entity {
     this.offNoise = game.events.on('noise', (n) => this.hear(n));
   }
 
+  // Teammates of the local player get a dim outline (enemies are bright).
+  get outline() {
+    return this.team === this.game.player?.team ? 0.4 : CONFIG.outlines.enemy;
+  }
+
   buildModel() {
     this.root = new THREE.Group();
     const part = (g, y, z = 0) => {
       const mesh = new THREE.Mesh(g, botMaterial);
       mesh.position.set(0, y, z);
       mesh.castShadow = true;
-      mesh.userData.outline = CONFIG.outlines.enemy;
+      mesh.userData.outline = this.outline;
       this.root.add(mesh);
       return mesh;
     };
@@ -84,6 +89,9 @@ export class Bot extends Entity {
     this.burstLeft = 3;
     this.burstPause = 0;
     this.deathTime = 0;
+    this.orders = null; // bomb mode: { goal, use, exact, urgent } from the practice manager
+    this.using = false; // holding "use" (plant / defuse)
+    this.frozen = false; // freeze time
   }
 
   spawn(position, yaw = 0) {
@@ -213,6 +221,7 @@ export class Bot extends Entity {
 
   investigate(point, turnFirst) {
     if (this.state === 'combat') return;
+    if (this.orders?.urgent) return; // planting / defusing / grabbing the bomb comes first
     const fresh = this.state !== 'investigate';
     this.state = 'investigate';
     this.setGoal(point);
@@ -238,6 +247,11 @@ export class Bot extends Entity {
       return;
     }
 
+    if (this.frozen) {
+      this.using = false;
+      this.root.position.copy(this.position);
+      return;
+    }
     this.thinkTimer -= dt;
     if (this.thinkTimer <= 0) {
       this.thinkTimer = 0.1;
@@ -246,6 +260,7 @@ export class Bot extends Entity {
 
     const desired = new THREE.Vector3();
     let speed = 0;
+    if (this.state !== 'patrol' && this.state !== 'search') this.using = false;
     switch (this.state) {
       case 'combat':
         speed = this.updateCombat(desired, dt);
@@ -254,10 +269,11 @@ export class Bot extends Entity {
         speed = this.updateInvestigate(desired, dt);
         break;
       case 'search':
-        this.updateSearch(dt);
+        if (this.orders) speed = this.updateOrders(desired, dt);
+        else this.updateSearch(dt);
         break;
       default:
-        speed = this.updatePatrol(desired, dt);
+        speed = this.orders ? this.updateOrders(desired, dt) : this.updatePatrol(desired, dt);
     }
     if (!this.weapon.reloading && !this.canSee && this.weapon.ammo < this.weapon.def.magSize * 0.4) this.weapon.startReload();
 
@@ -367,6 +383,44 @@ export class Bot extends Entity {
       this.lookYaw = this.yaw + rand(-2, 2);
     }
     return CONFIG.bots.walkSpeed;
+  }
+
+  // Bomb mode: go where the orders say; once there, hold the spot (looking
+  // around) or hold "use" on it (plant / defuse).
+  updateOrders(out, dt) {
+    const o = this.orders;
+    if (this.state === 'search') this.state = 'patrol';
+    const dx = o.goal.x - this.position.x;
+    const dz = o.goal.z - this.position.z;
+    const d = Math.hypot(dx, dz);
+    if (d > 1.6) {
+      this.using = false;
+      if (!this.goal || this.goal.distanceToSquared(o.goal) > 0.25) this.setGoal(o.goal);
+      const speed = o.walk ? CONFIG.bots.walkSpeed : CONFIG.bots.speed;
+      if (this.followPath(out, speed, dt)) this.setGoal(o.goal);
+      return speed;
+    }
+    this.goal = null;
+    this.path = null;
+    if (o.exact && d > 0.4) {
+      // Last step straight onto the spot (the bomb isn't on a cell center).
+      const s = CONFIG.bots.walkSpeed;
+      out.set((dx / d) * s, 0, (dz / d) * s);
+      this.turnToward(Math.atan2(-dx, -dz), dt);
+      this.using = false;
+      return s;
+    }
+    this.using = !!o.use;
+    if (!o.use) {
+      this.waitTimer -= dt;
+      if (this.waitTimer <= 0 || this.lookYaw == null) {
+        this.lookYaw = o.look ?? this.yaw + rand(-2, 2);
+        if (o.look != null) this.lookYaw += rand(-0.8, 0.8);
+        this.waitTimer = rand(1, 2.5);
+      }
+      this.turnToward(this.lookYaw, dt * 0.6);
+    }
+    return 0;
   }
 
   // Rotates toward targetYaw; returns how far off we still are (radians).

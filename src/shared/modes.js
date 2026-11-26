@@ -25,7 +25,25 @@ export const MODES = {
     spawnProtection: 1.5, // seconds of invulnerability (ends when you fire)
     freezeTime: 3,
   },
+  bomb: {
+    id: 'bomb',
+    name: 'Bomb',
+    description: 'Attack or defend bomb sites on Sandhollow. One life a round, first to 7.',
+    map: 'sandhollow',
+    minPlayers: 2,
+    maxPlayers: 10,
+    roundsPerHalf: 6,
+    roundsToWin: 7, // 6-6 after 12 rounds is a draw
+    roundTime: 105, // seconds to plant
+    freezeTime: 5,
+    roundEndTime: 5,
+  },
 };
+
+// The map a mode plays on (modes without one use the default).
+export function mapForMode(mode) {
+  return mode?.map ?? 'boxyard';
+}
 
 export const DEFAULT_MODE = 'duel';
 export const TEAMS = ['blue', 'red'];
