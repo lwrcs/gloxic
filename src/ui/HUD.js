@@ -78,7 +78,7 @@ export class HUD {
               <input class="tick" type="range" min="0" max="1.2" step="0.05" />
             </label>
             <label class="toggle"><input type="checkbox" data-setting="recoilView" /> View follows recoil</label>
-            <label class="toggle mouse-only"><input type="checkbox" data-setting="fullscreen" /> Fullscreen (stops Ctrl+W closing the tab)</label>
+            <label class="toggle mouse-only"><input type="checkbox" data-setting="fullscreen" /> Fullscreen (lets Ctrl+W, Ctrl+Tab... reach the game)</label>
             <label class="toggle practice-only"><input type="checkbox" data-setting="invincible" /> Invincible</label>
             <label class="toggle practice-only"><input type="checkbox" data-setting="infiniteAmmo" /> Unlimited ammo</label>
             <label class="toggle practice-only"><input type="checkbox" data-setting="noEnemies" /> Disable enemies</label>

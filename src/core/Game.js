@@ -9,13 +9,16 @@ import { PostFX } from '../render/PostFX.js';
 import { castRay } from '../shared/raycast.js';
 import { isTouchDevice } from '../ui/TouchControls.js';
 
-// Keys the browser should hand to the game in fullscreen (so Ctrl+W, Ctrl+D,
-// Ctrl+S... don't trigger browser shortcuts). Add new bindings here.
+// Keys the browser hands to the game in fullscreen (Keyboard Lock), so no
+// Ctrl+letter / digit / Tab combo reaches the browser while crouching. In a
+// normal window Chrome never lets a page block Ctrl+W, Ctrl+T, Ctrl+N or
+// Ctrl+Tab. Escape and the Windows key are left with the system.
 const LOCKED_KEYS = [
-  'KeyW', 'KeyA', 'KeyS', 'KeyD', 'KeyC', 'KeyR', 'KeyQ', 'KeyE', 'KeyF', 'KeyG', 'KeyB', 'KeyT', 'KeyN',
-  'Digit1', 'Digit2', 'Digit3', 'Digit4', 'Digit5',
-  'Space', 'Tab', 'ShiftLeft', 'ShiftRight', 'ControlLeft', 'ControlRight', 'AltLeft',
-  'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight',
+  ...Array.from({ length: 26 }, (_, i) => `Key${String.fromCharCode(65 + i)}`),
+  ...Array.from({ length: 10 }, (_, i) => `Digit${i}`),
+  ...Array.from({ length: 10 }, (_, i) => `F${i + 1}`), // F11 / F12 stay with the browser
+  'Space', 'Tab', 'Enter', 'Backspace', 'ShiftLeft', 'ShiftRight', 'ControlLeft', 'ControlRight', 'AltLeft', 'AltRight',
+  'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'PageUp', 'PageDown',
 ];
 
 // The Game owns the renderer, scenes, main loop and the lists of things that

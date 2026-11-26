@@ -16,7 +16,9 @@ const DEFAULTS = {
   infiniteAmmo: false, // mags never empty, no reloading
   noEnemies: false, // no bots spawn; the round timer is frozen
   botCount: 4, // enemies per round (1-10)
-  fullscreen: false, // go fullscreen with Keyboard Lock on play (stops Ctrl+W closing the tab)
+  // Fullscreen with Keyboard Lock on play: the only way a page can keep
+  // Ctrl+W / Ctrl+T / Ctrl+N / Ctrl+Tab from the browser (Chrome / Edge).
+  fullscreen: true,
 };
 
 export class Settings {

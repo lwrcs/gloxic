@@ -32,7 +32,7 @@ export class Input {
       // A text box (friend code, name) can keep focus after the menu hides.
       // Letters typed into it can be swallowed by the box or a Windows IME,
       // so once we're playing, take focus back to the page.
-      if (typing && this.active) e.target.blur();
+      if (typing && this.capturing) e.target.blur();
       else if (typing) return; // typing in the menu isn't game input
       const code = keyCode(e);
       if (!this.keys.has(code)) this.pressed.add(code);
