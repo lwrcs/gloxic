@@ -14,7 +14,7 @@ import { BTN, runCmd, patternScale, aimDirection } from '../shared/pawn.js';
 // code the server runs. Online, the command is also sent to the server and
 // kept for prediction (net/OnlineSession.js).
 //
-// Controls: WASD move, Space jump, Ctrl (or C) crouch, Shift walk,
+// Controls: WASD (or arrows) move, Space jump, Ctrl (or C) crouch, Shift walk,
 //           LMB fire, RMB aim down sights, R reload, 1-4 or wheel switch,
 //           Q knife (again: back to the last gun).
 
@@ -162,10 +162,13 @@ export class Player extends Entity {
     const input = this.game.input;
     const down = (...codes) => codes.some((c) => input.isDown(c));
     let b = 0;
-    if (down('KeyW')) b |= BTN.FORWARD;
-    if (down('KeyS')) b |= BTN.BACK;
-    if (down('KeyA')) b |= BTN.LEFT;
-    if (down('KeyD')) b |= BTN.RIGHT;
+    // Arrow keys move too. Many gaming keyboards have an Fn+W toggle that
+    // swaps WASD with the arrows, so with it on, W/A/S/D send arrow keys
+    // while every other key (Q, 1-4, Space, Tab) works as normal.
+    if (down('KeyW', 'ArrowUp')) b |= BTN.FORWARD;
+    if (down('KeyS', 'ArrowDown')) b |= BTN.BACK;
+    if (down('KeyA', 'ArrowLeft')) b |= BTN.LEFT;
+    if (down('KeyD', 'ArrowRight')) b |= BTN.RIGHT;
     // Jump on a hold, or on a tap remembered since the last tick.
     if (down('Space') || input.wasPressed('Space')) b |= BTN.JUMP;
     // Crouch on Ctrl (C also works). Note: in a window, Ctrl+W is the

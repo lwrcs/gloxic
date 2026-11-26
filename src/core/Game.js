@@ -15,6 +15,7 @@ const LOCKED_KEYS = [
   'KeyW', 'KeyA', 'KeyS', 'KeyD', 'KeyC', 'KeyR', 'KeyQ', 'KeyE', 'KeyF', 'KeyG', 'KeyB', 'KeyT', 'KeyN',
   'Digit1', 'Digit2', 'Digit3', 'Digit4', 'Digit5',
   'Space', 'Tab', 'ShiftLeft', 'ShiftRight', 'ControlLeft', 'ControlRight', 'AltLeft',
+  'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight',
 ];
 
 // The Game owns the renderer, scenes, main loop and the lists of things that
@@ -56,6 +57,7 @@ export class Game {
     this.events = new Events();
     this.settings = new Settings(this.events);
     this.input = new Input(this.renderer.domElement);
+    this.input.inMatch = () => !!this.session; // keep Ctrl+key etc. from the browser during a match
     this.audio = new Audio();
     this.audio.setVolume(this.settings.get('volume'));
     this.events.on('settingChanged', ({ name, value }) => name === 'volume' && this.audio.setVolume(value));
@@ -80,7 +82,7 @@ export class Game {
     let devReload = false;
     import.meta.hot?.on('vite:beforeFullReload', () => (devReload = true));
     window.addEventListener('beforeunload', (e) => {
-      if (this.time > 0 && !devReload) {
+      if (this.session && !devReload) {
         e.preventDefault();
         e.returnValue = '';
       }
@@ -93,6 +95,7 @@ export class Game {
   // Call from a user gesture (click): grabs the mouse and enables audio.
   requestPlay() {
     this.audio.unlock();
+    this.input.releaseFocus(); // a menu text box mustn't keep the keyboard
     if (this.touchMode) {
       // No pointer lock on touch screens: play with on-screen controls.
       // Android can go fullscreen and lock landscape; iPhone ignores this.
@@ -105,7 +108,7 @@ export class Game {
       this.input.setFreeMode(true);
       return;
     }
-    if (CONFIG.input.fullscreen) this.enterFullscreen();
+    if (CONFIG.input.fullscreen || this.settings.get('fullscreen')) this.enterFullscreen();
     this.input.requestLock();
     // Some embedded browsers never grant pointer lock. If it has never worked
     // this session, fall back to playing with a visible cursor.
@@ -204,6 +207,7 @@ export class Game {
     // Before any logic: e.g. the online session advances its clock so this
     // frame's commands carry the right view tick.
     for (const s of this.systems) s.preUpdate?.(dt);
+    this.input.pollGamepads();
     const tick = this.tickLength;
     this.input.holdPresses = true; // presses wait for the tick that uses them
     // Online the world keeps going while you're in the pause menu (you just

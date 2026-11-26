@@ -48,7 +48,7 @@ export class HUD {
           <div class="pause-actions"><button class="leave">Leave</button></div>
           <p class="touch-hint">Left side: move (push far to run, a little to sneak) · Right side: drag to look</p>
           <table class="keys">
-            <tr><td>WASD</td><td>Move</td></tr>
+            <tr><td>WASD / Arrows</td><td>Move</td></tr>
             <tr><td>Mouse</td><td>Look / Fire</td></tr>
             <tr><td>Right click</td><td>Aim down sights</td></tr>
             <tr><td>Space</td><td>Jump</td></tr>
@@ -78,6 +78,7 @@ export class HUD {
               <input class="tick" type="range" min="0" max="1.2" step="0.05" />
             </label>
             <label class="toggle"><input type="checkbox" data-setting="recoilView" /> View follows recoil</label>
+            <label class="toggle mouse-only"><input type="checkbox" data-setting="fullscreen" /> Fullscreen (stops Ctrl+W closing the tab)</label>
             <label class="toggle practice-only"><input type="checkbox" data-setting="invincible" /> Invincible</label>
             <label class="toggle practice-only"><input type="checkbox" data-setting="infiniteAmmo" /> Unlimited ammo</label>
             <label class="toggle practice-only"><input type="checkbox" data-setting="noEnemies" /> Disable enemies</label>
