@@ -25,6 +25,7 @@ export class Input {
     this.onLockChange = null; // called with `active`
     this.holdPresses = false; // tick mode: keep presses until clearPresses()
     this.padKeys = new Set(); // movement keys held by a gamepad stick (pollGamepads)
+    this.lockWantedAt = -Infinity; // when the game last asked for pointer lock
     this.inMatch = () => false; // set by Game: a practice or online session is running
 
     window.addEventListener('keydown', (e) => {
@@ -56,6 +57,10 @@ export class Input {
 
     window.addEventListener('mousedown', (e) => {
       if (!this.active) return;
+      // Playing with a visible cursor because the lock didn't take (see
+      // below): any click tries again, so aim isn't stuck between the
+      // screen edges.
+      if (this.freeMode && !this.locked && e.pointerType !== 'touch') this.requestLock();
       this.mouseButtons.add(e.button);
       this.mousePressed.add(e.button);
     });
@@ -87,6 +92,13 @@ export class Input {
       this.onLockChange?.(this.active);
     });
     document.addEventListener('pointerlockerror', () => console.warn('Pointer lock was refused'));
+    // Going fullscreen on the same click can make Chrome refuse or drop the
+    // pointer lock (fullscreen uses up the click's permission). Then aim
+    // falls back to the visible cursor and stops at the screen edges. Once
+    // fullscreen is in, ask for the lock again.
+    document.addEventListener('fullscreenchange', () => {
+      if (document.fullscreenElement && !this.locked && performance.now() - this.lockWantedAt < 3000) this.requestLock();
+    });
   }
 
   get active() {
@@ -126,6 +138,7 @@ export class Input {
   }
 
   requestLock() {
+    this.lockWantedAt = performance.now();
     try {
       const p = this.element.requestPointerLock();
       p?.catch?.(() => {}); // Chrome rejects if re-locking too fast after Esc
